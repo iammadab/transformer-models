@@ -38,8 +38,7 @@ def tokenizer(str):
 class Embedding(nn.Module):
     def __init__(self, vocab_size: int, d_model: int):
         super().__init__()
-        # initialize the embedding matrix
-        self.embedding_matrix = nn.Parameter(torch.empty(vocab_size, d_model))
+        self.embedding_matrix = nn.Parameter(init_weights((vocab_size, d_model)))
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
         """
@@ -49,6 +48,12 @@ class Embedding(nn.Module):
             torch.Tensor: Embeddings of shape (seq_len, d_model)
         """
         return self.embedding_matrix[token_ids]
+
+# Helpers
+
+def init_weights(shape):
+    # TODO: implement different shape initialization approaches
+    return torch.empty(shape)
 
 if __name__ == "__main__":
     main()
