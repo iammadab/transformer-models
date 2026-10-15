@@ -2,6 +2,7 @@ import torch
 import torch.nn
 
 def main():
+    print(tokenizer("Hello world"))
     print("Hello from transformer-models!")
 
 # Transformer (feed forward pass)
@@ -29,7 +30,12 @@ def main():
 # then during training replace the fake tokenizer
 
 def tokenizer(str):
-    # return a random number for each word in the str
+    """
+    Fake tokenizer that just returns a random integer
+    for every word in the input string
+    """
+    n_words = len(str.split())
+    return torch.randint(0, 100, (n_words,))
 
 if __name__ == "__main__":
     main()
