@@ -104,6 +104,23 @@ class PositionalEncoding(nn.Module):
 
         return token_embeddings + positional_encodings
 
+class SublayerConnection(nn.Module):
+    def __init__(self, d_model: int, sublayer: nn.Module):
+        super().__init__()
+        self.sublayer = sublayer
+        self.layer_norm = nn.LayerNorm(d_model)
+
+    def forward(self, token_embeddings: torch.Tensor):
+        """
+        Computes LayerNorm(x + SubLayer(x))
+
+        Args:
+            torch.Tensor: current token_embeddings of shape (seq_len, d_model)
+
+        Returns:
+            torch.Tensor: infused token embeddings of shape (seq_len, d_model)
+        """
+        return self.layer_norm(token_embeddings + self.sublayer(token_embeddings))
 
 # Helpers
 
@@ -120,6 +137,8 @@ def tokenizer(str):
 
 def init_weights(shape):
     # TODO: implement different shape initialization approaches
+    # actually, this won't work because things like LayerNorm will not be initialized 
+    # this way, so it makes sense to go through all the named parameters
     return torch.empty(shape)
 
 if __name__ == "__main__":
