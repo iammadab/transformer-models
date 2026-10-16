@@ -122,6 +122,27 @@ class SublayerConnection(nn.Module):
         """
         return self.layer_norm(token_embeddings + self.sublayer(token_embeddings))
 
+class FFN(nn.Module):
+    def __init__(self, d_model: int, d_ff: int):
+        super().__init__()
+
+        # upward projection
+        self.linear_1 = nn.Linear(d_model, d_ff)
+        # downward projection
+        self.linear_2 = nn.Linear(d_ff, d_model)
+
+    def forward(self, token_embeddings: torch.Tensor):
+        """
+        Computes FFN(x) = max(0, x * W_1 + B_1) * W_2 + B_2
+
+        Args:
+            torch.Tensor: current token embeddings of shape (seq_len, d_model)
+
+        Returns:
+            torch.Tensor: infused token embeddings of shape (seq_len, d_model)
+        """
+        return self.linear_2(torch.relu(self.linear_1(token_embeddings)))
+
 # Helpers
 
 def tokenizer(str):
