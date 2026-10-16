@@ -24,32 +24,99 @@ def main():
 # - Linear
 # - Softmax
 
-def tokenizer(str):
-    """
-    Fake tokenizer that just returns a random integer
-    for every word in the input string
-
-    Returns: 
-        torch.Tensor: token ids of shape (seq_len)
-    """
-    n_words = len(str.split())
-    return torch.randint(0, 100, (n_words,))
-
 class Embedding(nn.Module):
+    """
+    Look up the embeddings for the given token ids
+
+    Arg:
+        torch.Tensor: token ids of shape (seq_len)
+
+    Returns:
+        torch.Tensor: embeddings of shape (seq_len, d_model)
+    """
+
     def __init__(self, vocab_size: int, d_model: int):
         super().__init__()
         self.embedding_matrix = nn.Parameter(init_weights((vocab_size, d_model)))
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
-        """
-        Look up the embeddings for the given token ids
-
-        Returns:
-            torch.Tensor: Embeddings of shape (seq_len, d_model)
-        """
         return self.embedding_matrix[token_ids]
 
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, initial_seq_len: int):
+        """
+        Generates a table of size [initial_seq_len] that implements
+        the following formula
+
+        for all (pos x i)
+        where   pos $\in$ [0, seq_len)
+        and       i $\in$ [0, d_model)
+
+        $PE_(pos, 2i)       = sin(pos * 10000^{-(2i / d_{model})})$
+        $PE_(pos, 2i + 1)   = cos(pos * 10000^{-(2i / d_{model})})$
+        """
+
+        assert d_model % 2 == 0
+
+        super().__init__()
+        self.initial_seq_len = initial_seq_len
+
+        # compute -(2i / d_model)
+        # shape -> [d_model/2]
+        exponents = torch.arange(0, d_model, 2, dtype=torch.float32) / -d_model
+
+        # compute 10000^(-2i / d_model)
+        # shape -> [d_model/2]
+        denoms = torch.pow(10000, exponents)
+
+        # shape -> [initial_seq_len, 1]
+        pos = torch.arange(0, initial_seq_len).unsqueeze(1)
+
+        # shape -> [initial_seq_len, d_model]
+        self.register_buffer("encoding_table", torch.empty((initial_seq_len, d_model)))
+
+        # even dimensions
+        # $PE_(pos, 2i)       = sin(pos * 10000^{-(2i / d_{model})})$
+        self.encoding_table[:, 0::2] = torch.sin(pos * denoms)
+
+        # odd dimensions
+        # $PE_(pos, 2i + 1)   = cos(pos * 10000^{-(2i / d_{model})})$
+        self.encoding_table[:, 1::2] = torch.cos(pos * denoms)
+
+    def forward(self, token_embeddings: torch.Tensor):
+        """
+        Add the positional information to the token embedding representations
+
+        Args:
+            torch.Tensor: token emebeddings of shape (seq_len, d_model)
+
+        Returns:
+            torch.Tensor: embeddings infused with positional information (seq_len, d_model)
+        """
+
+        seq_len = len(token_embeddings)
+
+        # ensure we have enough precomputed positional encoding values
+        # TODO: if we have less, we should be able to dynamically add more
+        assert seq_len <= self.initial_seq_len
+
+        positional_encodings = self.encoding_table[:seq_len]
+
+        return token_embeddings + positional_encodings
+
+
 # Helpers
+
+def tokenizer(str):
+    """
+    Fake tokenizer that just returns a random integer
+    for every word in the input string
+    
+    Returns: 
+        torch.Tensor: token ids of shape (seq_len)
+    """
+    n_words = len(str.split())
+    return torch.randint(0, 100, (n_words,))
 
 def init_weights(shape):
     # TODO: implement different shape initialization approaches
