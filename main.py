@@ -249,6 +249,55 @@ def attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask = None) ->
     weights = torch.softmax(scores, dim = -1)
     return weights @ v
 
+
+class EncoderLayer(nn.Module):
+    def __init__(self, d_model: int, d_ff: int, n_heads: int):
+        super().__init__()
+
+        self.attention_connection = SublayerConnection(
+            d_model,
+            SelfAttention(d_model, n_heads),
+        )
+        self.ffn_connection = SublayerConnection(
+            d_model,
+            FFN(d_model, d_ff),
+        )
+
+    def forward(self, token_embeddings: torch.Tensor):
+        token_embeddings = self.attention_connection(token_embeddings)
+        return self.ffn_connection(token_embeddings)
+
+
+class Encoder(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        d_model: int,
+        d_ff: int,
+        n_heads: int,
+        n_layers: int,
+        max_seq_len: int,
+    ):
+        super().__init__()
+
+        self.d_model = d_model
+        self.embedding = Embedding(vocab_size, d_model)
+        self.position_encoding = PositionalEncoding(d_model, max_seq_len)
+        self.layers = nn.ModuleList(
+            [EncoderLayer(d_model, d_ff, n_heads) for _ in range(n_layers)]
+        )
+
+    def forward(self, token_ids: torch.Tensor):
+        token_embeddings = self.embedding(token_ids)
+        token_embeddings = token_embeddings * math.sqrt(self.d_model)
+        token_embeddings = self.position_encoding(token_embeddings)
+
+        for layer in self.layers:
+            token_embeddings = layer(token_embeddings)
+
+        return token_embeddings
+
+
 # Helpers
 
 def tokenizer(str):
