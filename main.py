@@ -150,6 +150,8 @@ class SelfAttention(nn.Module):
 
         super().__init__()
 
+        self.d_model = d_model
+        self.n_heads = n_heads
         self.d_k = d_model // n_heads
 
         # contains W_q, W_k and W_v
@@ -159,7 +161,13 @@ class SelfAttention(nn.Module):
     def forward(self, token_embeddings: torch.Tensor):
         projection = self.projection_matrix(token_embeddings)
         q, k, v = projection.chunk(3, dim = -1)
-        return self.output_matrix(attention(q, k, v))
+
+        q = split_heads(q, self.n_heads, self.d_k)
+        k = split_heads(k, self.n_heads, self.d_k)
+        v = split_heads(v, self.n_heads, self.d_k)
+
+        context = merge_heads(attention(q, k, v))
+        return self.output_matrix(context)
 
 class CrossAttention(nn.Module):
     def __init__(self, d_model: int, n_heads: int):
@@ -167,6 +175,8 @@ class CrossAttention(nn.Module):
 
         super().__init__()
 
+        self.d_model = d_model
+        self.n_heads = n_heads
         self.d_k = d_model // n_heads
 
         # contains W_k and W_v weights
@@ -179,7 +189,13 @@ class CrossAttention(nn.Module):
         kv_projection = self.kv_projection_matrix(src_token_embeddings)
         q = self.q_projection_matrix(target_token_embeddings)
         k, v = kv_projection.chunk(2, dim = -1)
-        return self.output_matrix(attention(q, k, v))
+
+        q = split_heads(q, self.n_heads, self.d_k)
+        k = split_heads(k, self.n_heads, self.d_k)
+        v = split_heads(v, self.n_heads, self.d_k)
+
+        context = merge_heads(attention(q, k, v))
+        return self.output_matrix(context)
 
 class MaskedSelfAttention(nn.Module):
     def __init__(self, d_model: int, n_heads: int):
@@ -187,6 +203,8 @@ class MaskedSelfAttention(nn.Module):
 
         super().__init__()
 
+        self.d_model = d_model
+        self.n_heads = n_heads
         self.d_k = d_model // n_heads
 
         # contains W_q, W_k and W_v
@@ -194,14 +212,42 @@ class MaskedSelfAttention(nn.Module):
         self.output_matrix = nn.Linear(d_model, d_model)
 
     def forward(self, token_embeddings: torch.Tensor):
-        # TODO: generate the mask and pass it into the attention function
         projection = self.qkv_projection_matrix(token_embeddings)
         q, k, v = projection.chunk(3, dim = -1)
-        return self.output_matrix(attention(q, k, v))
 
-def attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-    # TODO: handle mask argument
-    pass
+        q = split_heads(q, self.n_heads, self.d_k)
+        k = split_heads(k, self.n_heads, self.d_k)
+        v = split_heads(v, self.n_heads, self.d_k)
+
+        seq_len = token_embeddings.size(0)
+        mask = torch.tril(
+            torch.ones((seq_len, seq_len), dtype=torch.bool, device=token_embeddings.device)
+        )
+
+        context = merge_heads(attention(q, k, v, mask))
+        return self.output_matrix(context)
+
+
+def split_heads(x: torch.Tensor, n_heads: int, d_k: int) -> torch.Tensor:
+    """Convert [seq_len, d_model] into [n_heads, seq_len, d_k]."""
+    seq_len = x.size(0)
+    return x.reshape(seq_len, n_heads, d_k).transpose(0, 1)
+
+
+def merge_heads(x: torch.Tensor) -> torch.Tensor:
+    """Convert [n_heads, seq_len, d_k] into [seq_len, d_model]."""
+    n_heads, seq_len, d_k = x.shape
+    return x.transpose(0, 1).reshape(seq_len, n_heads * d_k)
+
+def attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask = None) -> torch.Tensor:
+    scores = q @ k.transpose(-1, -2)
+    scores = scores / math.sqrt(q.size(-1))
+
+    if mask is not None:
+        scores = scores.masked_fill(~mask, float("-inf"))
+
+    weights = torch.softmax(scores, dim = -1)
+    return weights @ v
 
 # Helpers
 
