@@ -159,7 +159,7 @@ class SelfAttention(nn.Module):
     def forward(self, token_embeddings: torch.Tensor):
         projection = self.projection_matrix(token_embeddings)
         q, k, v = projection.chunk(3, dim = -1)
-        return attention(q, k, v) @ self.output_matrix
+        return self.output_matrix(attention(q, k, v))
 
 class CrossAttention(nn.Module):
     def __init__(self, d_model: int, n_heads: int):
@@ -179,7 +179,7 @@ class CrossAttention(nn.Module):
         kv_projection = self.kv_projection_matrix(src_token_embeddings)
         q = self.q_projection_matrix(target_token_embeddings)
         k, v = kv_projection.chunk(2, dim = -1)
-        return attention(q, k, v) @ self.output_matrix
+        return self.output_matrix(attention(q, k, v))
 
 class MaskedSelfAttention(nn.Module):
     def __init__(self, d_model: int, n_heads: int):
@@ -197,10 +197,10 @@ class MaskedSelfAttention(nn.Module):
         # TODO: generate the mask and pass it into the attention function
         projection = self.qkv_projection_matrix(token_embeddings)
         q, k, v = projection.chunk(3, dim = -1)
-        return attention(q, k, v) @ self.output_matrix
+        return self.output_matrix(attention(q, k, v))
 
 def attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-    # I need this per head because I want to do some combinations on a per head basis
+    # TODO: handle mask argument
     pass
 
 # Helpers
