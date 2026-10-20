@@ -1,5 +1,6 @@
 import torch 
 import torch.nn as nn
+import math
 
 def main():
     print(tokenizer("Hello world"))
@@ -142,6 +143,65 @@ class FFN(nn.Module):
             torch.Tensor: infused token embeddings of shape (seq_len, d_model)
         """
         return self.linear_2(torch.relu(self.linear_1(token_embeddings)))
+
+class SelfAttention(nn.Module):
+    def __init__(self, d_model: int, n_heads: int):
+        assert d_model % n_heads == 0
+
+        super().__init__()
+
+        self.d_k = d_model // n_heads
+
+        # contains W_q, W_k and W_v
+        self.projection_matrix = nn.Linear(d_model, 3 * d_model)
+        self.output_matrix = nn.Linear(d_model, d_model)
+
+    def forward(self, token_embeddings: torch.Tensor):
+        projection = self.projection_matrix(token_embeddings)
+        q, k, v = projection.chunk(3, dim = -1)
+        return attention(q, k, v) @ self.output_matrix
+
+class CrossAttention(nn.Module):
+    def __init__(self, d_model: int, n_heads: int):
+        assert d_model % n_heads == 0
+
+        super().__init__()
+
+        self.d_k = d_model // n_heads
+
+        # contains W_k and W_v weights
+        self.kv_projection_matrix = nn.Linear(d_model, 2 * d_model)
+        # contains W_q weights
+        self.q_projection_matrix = nn.Linear(d_model, d_model)
+        self.output_matrix = nn.Linear(d_model, d_model)
+
+    def forward(self, src_token_embeddings: torch.Tensor, target_token_embeddings: torch.Tensor):
+        kv_projection = self.kv_projection_matrix(src_token_embeddings)
+        q = self.q_projection_matrix(target_token_embeddings)
+        k, v = kv_projection.chunk(2, dim = -1)
+        return attention(q, k, v) @ self.output_matrix
+
+class MaskedSelfAttention(nn.Module):
+    def __init__(self, d_model: int, n_heads: int):
+        assert d_model % n_heads == 0
+
+        super().__init__()
+
+        self.d_k = d_model // n_heads
+
+        # contains W_q, W_k and W_v
+        self.qkv_projection_matrix = nn.Linear(d_model, 3 * d_model)
+        self.output_matrix = nn.Linear(d_model, d_model)
+
+    def forward(self, token_embeddings: torch.Tensor):
+        # TODO: generate the mask and pass it into the attention function
+        projection = self.qkv_projection_matrix(token_embeddings)
+        q, k, v = projection.chunk(3, dim = -1)
+        return attention(q, k, v) @ self.output_matrix
+
+def attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+    # I need this per head because I want to do some combinations on a per head basis
+    pass
 
 # Helpers
 
